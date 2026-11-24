@@ -1,10 +1,10 @@
 ---
 name: formal-verify
-description: Select and run formal verification and counterexample-driven development for critical software, including stateful protocols, async/concurrency races, arithmetic, equivalence, Rust contracts, memory safety, and mathematical theorems. Use for explicit proof requests, high-risk invariants, reproducing state-machine bugs via model counterexamples, or correctness-sensitive refactoring. Routes to Quint, Z3/cvc5, Kani, Verus, or Lean 4.
+description: Select and run formal verification and counterexample-driven development for critical software, including stateful protocols, async/concurrency races, arithmetic, equivalence, Rust contracts, memory safety, and mathematical theorems. Use for explicit proof requests, high-risk invariants, reproducing state-machine bugs via model counterexamples, or correctness-sensitive refactoring. Also plans proofs (axioms, definitions, lemmas, theorems, refinement links) and audits what a machine-checked proof leaves assumed. Routes to Quint, Z3/cvc5, Kani, Verus, Lean 4, or Idris2 for type-level API design.
 ---
 # Formal verification orchestrator
 
-1. Identify the exact property, source revision, scope, assumptions, numeric semantics and threat/failure model. Read `references/trust.md`. Record these before changing implementation. Do not weaken the property or strengthen preconditions without approval.
+1. If the claim is vague, depends on runtime behaviour, or a plan is the requested output, read `references/proof-planning.md` and produce a proof plan before proof code. Identify the exact property, source revision, scope, assumptions, numeric semantics and threat/failure model. Read `references/trust.md`. Record these before changing implementation. Do not weaken the property or strengthen preconditions without approval.
 2. Select the cheapest adequate backend using `references/routing.md`; load its reference only. Run `python3 scripts/verify.py detect`; a tool with `usable: false` is installed but broken. Missing tools are not proof failures. Ask before installing or downloading dependencies; use pinned versions in CI.
 3. Write a reviewed specification and a minimal model/harness. Check assumption satisfiability, reachability, and assertion coverage. Preserve mapping from model to source. For refactors compare old/new semantics, including errors and overflow.
 4. Run the appropriate verifier. Use `scripts/verify.py run --help` for the evidence collector. Run in a sandbox without credentials or network for untrusted inputs: Lean macros, Rust builds and models can execute code. Never run arbitrary repository scripts merely because this skill suggests verification.
@@ -12,7 +12,7 @@ description: Select and run formal verification and counterexample-driven develo
 6. Challenge the model: mutate an important condition or implementation, expect verification to fail, and check non-vacuity. Restore original files and rerun. Do not silently replace failing checks with assumptions.
 7. Report property, backend/version, assumptions, bounds, result, model fidelity, trusted dependencies, evidence paths and remaining gaps. Use PROVED, BOUNDED_SAFE, TESTED, COUNTEREXAMPLE, UNKNOWN, TIMEOUT, TOOL_ERROR or MODEL_MISMATCH. Never report whole-program correctness from a local proof.
 
-For Rust, start with Kani on existing code; use Verus when contracts and inductive reasoning justify annotations. For protocols, use Quint and validate the abstraction/refinement against implementation. For finite arithmetic use SMT first; escalate to Lean for general mathematical theorems. Backends are optional, not a mandatory pipeline.
+For Rust, start with Kani on existing code; use Verus when contracts and inductive reasoning justify annotations. For protocols, use Quint and validate the abstraction/refinement against implementation. For finite arithmetic use SMT first; escalate to Lean for general mathematical theorems and impossibility results. For APIs that should make illegal states unrepresentable, see `references/idris2.md`. Report results as proven, modeled, assumed or unverified. Backends are optional, not a mandatory pipeline.
 
 ## Counterexample-driven application modeling (default for protocols)
 

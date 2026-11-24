@@ -1,0 +1,4 @@
+interface:
+  display_name: "Formal Verify"
+  short_description: "Plan and run Quint, SMT, Kani, Verus, Lean and Idris2 proofs with evidence."
+  default_prompt: "Use $formal-verify to pick the right verifier for this property, run it, and report what is proven, modeled and assumed."

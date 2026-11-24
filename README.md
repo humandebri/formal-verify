@@ -1,7 +1,7 @@
-# formal-verify v0.4.0
+# formal-verify v0.5.0
 [![ci](https://github.com/humandebri/formal-verify/actions/workflows/ci.yml/badge.svg)](https://github.com/humandebri/formal-verify/actions/workflows/ci.yml)
 
-Agent Skills形式の形式検証オーケストレーター（独立実装）。Z3/cvc5、Quint、Verus、Kani、Lean 4を対象とする。
+Agent Skills形式の形式検証オーケストレーター（独立実装）。Z3/cvc5、Quint、Verus、Kani、Lean 4を対象とし、証明計画と Idris2 による型レベル API 設計の指針も含む。
 
 ## Install
 このリポジトリを clone し、Claude Codeなら `~/.claude/skills/formal-verify`、Codexなら `~/.codex/skills/formal-verify`（またはプロジェクトの `.agents/skills/formal-verify`）に配置する。
@@ -44,6 +44,7 @@ FORMAL_VERIFY_INTEGRATION=1 python3 -m unittest tests/test_integration.py -v  # 
 - `result.json` には入力・コマンド・作業ディレクトリの絶対パス（ホームディレクトリ名を含む）が記録される。証跡を公開リポジトリに commit する前に確認する。
 
 ## Changelog
+- v0.5.0: 旧 `formalize-proofs` スキルを統合（証明計画テンプレートと公理・定義・補題・定理・refinement の構造化、Idris2、Lean のモデリング規則、Verus の抽出境界と specgen-cli 連携、ルーティング追加）。Codex 用 `agents/openai.yaml` を追加。
 - v0.4.0: Lean で標準外の公理・`sorry` に依存した証明を終了コード1（`untrusted_axioms`）に変更し、`lean_axioms` を記録。CI（GitHub Actions）を追加。references（SMT/Kani/Verus/Lean）を拡充し、掲載コード例を実検証器で確認。
 - v0.3.0: `observed` による結果分類と終了コード 0/1/2/3、作業ディレクトリを `OUT/work` に分離、`detect` の動作確認、`quint test` での `--property` 拒否、cvc5 に `--produce-models`、実検証器の統合テスト。`result.json` は `schema_version: 2`。
 

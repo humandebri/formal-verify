@@ -6,6 +6,12 @@
 - Narrow the scope while iterating with `--verify-module <m>` or `--verify-function <f>`; report the full-crate result at the end (`is-verifying-entire-crate` in the JSON).
 - Cargo projects: see `cargo verus --help` for the installed version.
 
+## Before writing specs
+1. Read the target function and all direct callers, callees, types and tests.
+2. Decide whether it is Verus-supported. Async, FFI, trait-heavy dispatch, macro-heavy code, unresolved generics and I/O are extraction boundaries unless the code already verifies.
+3. Extract or identify a small pure core without changing semantics, and verify the implementation file itself, not only a separate harness (unless a model-only proof was requested).
+4. If the repository uses the `specgen` CLI (`Cargo.toml` plus `spec/`), follow the `specgen-cli` skill for target registration, scenario review, accepted specs, contract injection (`apply-contract`) and `specgen verify`.
+
 ## Writing specs
 ```rust
 use vstd::prelude::*;
@@ -37,6 +43,9 @@ fn main() {}
 - Exec arithmetic is overflow-checked; spec arithmetic (`spec fn`, inside `ensures`) is on mathematical integers.
 - Loops need `invariant` (restate everything still needed after the loop) and `decreases` for termination.
 - Nonlinear facts (e.g. `s == i * (i + 1) / 2`) usually fail automatically; prove them with `by (nonlinear_arith)` or a separate `proof fn` lemma, and keep loop bounds strong enough to rule out exec overflow.
+
+## Report
+State which code is verified, which behaviour is only modeled, which runtime/library facts are assumed, and which parts are outside Verus support.
 
 ## Trust review
 Search the verified code for `assume(`, `admit(`, `#[verifier::external_body]`, `#[verifier::external]`, `external_fn_specification`, `#[verifier::truncate]` and trusted `spec` axioms (`#[verifier::external_body] proof fn` or `broadcast` axioms). Each is unverified trust; list it in the report. Code outside `verus! {}` is not verified at all.
