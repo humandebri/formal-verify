@@ -56,7 +56,9 @@ class Integration(unittest.TestCase):
                 r = subprocess.run([sys.executable, str(P), 'run', *map(str, argv), '--timeout', '900', '--out', str(out)],
                                    capture_output=True, text=True, cwd=t)
                 data = json.loads((out / 'result.json').read_text())
-                self.assertEqual((r.returncode, data['observed']['outcome']), (code, outcome), data['observed'])
+                logs = {n: (out / n).read_text(errors='replace')[-3000:] for n in ('stdout.log', 'stderr.log')}
+                self.assertEqual((r.returncode, data['observed']['outcome']), (code, outcome),
+                                 json.dumps({'observed': data['observed'], 'command': data['command'], **logs}, indent=1))
 
     def test_async_counter_case_end_to_end(self):
         """Real Quint results for the bundled example pass case_check's cross-checks."""
