@@ -1,4 +1,4 @@
-# formal-verify v0.2.0
+# formal-verify v0.3.0
 Agent Skills形式の形式検証オーケストレーター（独立実装）。Z3/cvc5、Quint、Verus、Kani、Lean 4を対象とする。
 
 ## Install
@@ -18,14 +18,31 @@ python3 scripts/verify.py run verus examples/add.rs --property add --out evidenc
 python3 scripts/verify.py run kani examples/kani_average.rs --property check --out evidence/kani
 python3 scripts/verify.py run lean examples/Add.lean --property add_comm_example --out evidence/lean
 python3 -m unittest discover -s tests -v
+FORMAL_VERIFY_INTEGRATION=1 python3 -m unittest tests/test_integration.py -v  # 実検証器で全サンプルを確認（遅い）
 ```
-出力ディレクトリは新規であること。各実行はJSON、標準出力・標準エラー、入力とログのSHA256、ツールバージョン情報を保存する。終了コード0は収集処理の成功のみを意味し、証明成功ではない。意味論的判定は必ずレビューする。SMT例では期待値は sat / unsat。`--property` はQuint/Kani以外では記録用ラベル。
+出力ディレクトリは新規であること。各実行はJSON、標準出力・標準エラー、入力とログのSHA256、ツールバージョン情報を保存する。SMT例では期待値は sat / unsat。`--property` はQuint run/verify では invariant、Kani では harness、それ以外では記録用ラベル。`quint test`/`typecheck` では受け付けない（テスト選択は `--quint-match`）。
+
+### 終了コードと `observed`
+| 終了コード | `observed.outcome` | 意味 |
+|---|---|---|
+| 0 | `clean` | ツールが失敗を報告しなかった（証明成功を意味しない） |
+| 1 | `violation_reported` | 反例・検証失敗・テスト失敗をツールが報告した |
+| 2 | `timeout` / `tool_missing` / `unrecognized` | 未導入、タイムアウト、既知パターン外の失敗、または入力ファイルが実行中に変化した |
+| 3 | `input_error` | 構文・型エラー、存在しない invariant/harness 名など、入力や引数をツールが拒否した |
+
+`observed.signals` には判定根拠となった出力行が入る。SMT では `smt_results`（sat/unsat/unknown の列）、Verus では JSON の検証件数、Lean では標準外の公理（`sorryAx` を含む）が `warnings` に入る。分類は各ツールの出力パターンによるヒューリスティックで、意味論的判定ではない。必ず生ログをレビューする。
+
+ツールは既定で `OUT/work` を作業ディレクトリとして実行され、ビルド成果物（Verus の実行ファイル、`_apalache-out/` 等）はそこに閉じ込められる。Lake/Cargo プロジェクトでは `--cwd` にプロジェクトルートを指定する。`detect` は各ツールの `--version` を実行し、`usable` が false なら導入済みでも使えない（例: Lean のツールチェーン未設定）。
 
 ## Limitations
-- v0.2は証跡収集とエージェント向けルーティングのMVP。全バックエンドの自動判定、形式的なモデル対応証明、完全な信頼境界監査、CI用の意味論的ゲートは未実装。
-- 2026-11-24 に macOS arm64 で Quick start の全サンプルを実検証済み（Z3 5.4.1 / cvc5 1.4.2 / Quint 0.34.0 + Apalache (JDK 21) / Verus 0.2026.05.05 / Kani 0.68.0 / Lean 4.36.0）。Pythonテスト8件も成功（模擬ソルバー含む）。他環境・他バージョンでは再確認すること。
+- v0.3は証跡収集とエージェント向けルーティングのMVP。全バックエンドの自動判定、形式的なモデル対応証明、完全な信頼境界監査、CI用の意味論的ゲートは未実装。
+- 2026-11-24 に macOS arm64 で Quick start の全サンプルを実検証済み（Z3 5.4.1 / cvc5 1.4.2 / Quint 0.34.0 + Apalache (JDK 21) / Verus 0.2026.05.05 / Kani 0.68.0 / Lean 4.36.0）。単体テスト19件と統合テスト11ケースも成功。他環境・他バージョンでは再確認すること。
 - タイムアウトは直接起動プロセスに対するもの。子孫プロセスの完全停止、ネットワーク遮断、資源制限は外部サンドボックスに委ねる。未信頼コードは隔離環境でのみ実行する。
 - 入力ファイルのみハッシュ化する。依存関係・インポート・ソース全体の証跡は別途固定する。
+- `result.json` には入力・コマンド・作業ディレクトリの絶対パス（ホームディレクトリ名を含む）が記録される。証跡を公開リポジトリに commit する前に確認する。
+
+## Changelog
+- v0.3.0: `observed` による結果分類と終了コード 0/1/2/3、作業ディレクトリを `OUT/work` に分離、`detect` の動作確認、`quint test` での `--property` 拒否、cvc5 に `--produce-models`、実検証器の統合テスト。`result.json` は `schema_version: 2`。
 
 ## v0.2: Counterexample-driven workflow
 参考: https://zenn.dev/mizchi/articles/quint-application-modeling 。`references/application-modeling.md` と `templates/case.json` を使用し、モデル反例・実装再現・修正後再現を区別する。`python3 scripts/case_check.py path/to/case.json` は証跡の存在とハッシュを確認するだけで、意味論は認証しない。
