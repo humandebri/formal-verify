@@ -1,0 +1,2 @@
+# Kani
+Standalone: `kani model.rs --harness check`. Cargo: `cargo kani --harness check`. Use kani::any and assertions; add covers for important branches; do not assume the property being verified. Check unwinding, unsupported features, stubs, assertion reachability and harness results. Record bounds and replay failures where feasible. See https://model-checking.github.io/kani/verification-results.html .

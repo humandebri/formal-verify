@@ -1,0 +1,11 @@
+{
+  "property_id": "P1",
+  "property": "observable safety assertion",
+  "source_revision": "",
+  "assumptions": [],
+  "exclusions": [],
+  "mapping": [{"abstract_action": "", "source_symbol": "", "concrete_inputs": "", "observable_effect": ""}],
+  "claim": "MODEL_ONLY",
+  "evidence": {},
+  "tradeoffs": []
+}

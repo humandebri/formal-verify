@@ -1,0 +1,21 @@
+---
+name: formal-verify
+description: Select and run formal verification and counterexample-driven development for critical software, including stateful protocols, async/concurrency races, arithmetic, equivalence, Rust contracts, memory safety, and mathematical theorems. Use for explicit proof requests, high-risk invariants, reproducing state-machine bugs via model counterexamples, or correctness-sensitive refactoring. Routes to Quint, Z3/cvc5, Kani, Verus, or Lean 4.
+---
+# Formal verification orchestrator
+
+1. Identify the exact property, source revision, scope, assumptions, numeric semantics and threat/failure model. Read `references/trust.md`. Record these before changing implementation. Do not weaken the property or strengthen preconditions without approval.
+2. Select the cheapest adequate backend using `references/routing.md`; load its reference only. Run `python3 scripts/verify.py detect`. Missing tools are not proof failures. Ask before installing or downloading dependencies; use pinned versions in CI.
+3. Write a reviewed specification and a minimal model/harness. Check assumption satisfiability, reachability, and assertion coverage. Preserve mapping from model to source. For refactors compare old/new semantics, including errors and overflow.
+4. Run the appropriate verifier. Use `scripts/verify.py run --help` for the evidence collector. Run in a sandbox without credentials or network for untrusted inputs: Lean macros, Rust builds and models can execute code. Never run arbitrary repository scripts merely because this skill suggests verification.
+5. Inspect raw evidence; a zero exit status is not a proof. Use `references/trust.md` to assign a semantic verdict. The collector deliberately does not certify general verifier output. If a proof fails, distinguish counterexample from unsupported construct, timeout or incomplete proof. Replay concrete counterexamples on original code where possible.
+6. Challenge the model: mutate an important condition or implementation, expect verification to fail, and check non-vacuity. Restore original files and rerun. Do not silently replace failing checks with assumptions.
+7. Report property, backend/version, assumptions, bounds, result, model fidelity, trusted dependencies, evidence paths and remaining gaps. Use PROVED, BOUNDED_SAFE, TESTED, COUNTEREXAMPLE, UNKNOWN, TIMEOUT, TOOL_ERROR or MODEL_MISMATCH. Never report whole-program correctness from a local proof.
+
+For Rust, start with Kani on existing code; use Verus when contracts and inductive reasoning justify annotations. For protocols, use Quint and validate the abstraction/refinement against implementation. For finite arithmetic use SMT first; escalate to Lean for general mathematical theorems. Backends are optional, not a mandatory pipeline.
+
+## Counterexample-driven application modeling (default for protocols)
+
+Read `references/application-modeling.md` before modeling stateful applications. Start with an observable safety property and a source-grounded failure hypothesis, not a translation of the entire codebase. Separate request, completion, publication, expiry and cancellation into actions when they can interleave. Record abstraction and concrete replay mappings using `templates/case.json`.
+
+For every model counterexample preserve the original trace, a deterministic model regression, and a concrete event sequence. Reproduce on the unchanged implementation through its public interface before calling it an implementation bug. If reproduction fails, investigate the abstraction; do not discard the trace. For an authorized fix, run the same test before and after, preserve both logs, recheck the model with unchanged properties and document safety/liveness tradeoffs. Use `scripts/case_check.py` to check evidence completeness; it never certifies the semantics of a proof or test. For new designs without an implementation, report replay as pending, not successful.

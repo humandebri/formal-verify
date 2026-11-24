@@ -1,0 +1,2 @@
+# Verus
+For standalone supported Rust: `verus --output-json model.rs`. For Cargo projects consult `cargo verus --help` for installed version. Use requires/ensures, loop invariants, proof functions and spec/exec distinctions. Verify callers meet requires. Inspect JSON and diagnostics for verified obligations, errors, skips and trusted code; no automatic certification from exit status. Verus is not a drop-in verifier for all Rust. See https://verus-lang.github.io/verus/guide/ .

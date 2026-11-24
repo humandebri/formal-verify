@@ -1,0 +1,2 @@
+# Z3 / cvc5
+Use SMT-LIB and explicit sorts. `z3 -smt2 model.smt2` or `cvc5 --lang=smt2 --incremental model.smt2`. Use two queries: assumptions alone, then push and assert negated property. SAT then UNSAT establishes entailment for the encoding; SAT then SAT requests a model (in a separate query if needed). UNKNOWN is inconclusive. Use bitvectors for machine arithmetic, Int only when justified. Check signed versus unsigned operators. No proof of source correspondence is implied. See https://microsoft.github.io/z3guide/docs/logic/basiccommands/ .

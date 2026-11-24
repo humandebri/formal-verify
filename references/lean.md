@@ -1,0 +1,2 @@
+# Lean 4
+`lean -DwarningAsError=true model.lean` or `lake env lean -DwarningAsError=true model.lean` in an approved project. Use #print axioms for each theorem. Review theorem statement, imports, dependency axioms, trust configuration and any native evaluation. Warning-as-error is useful but insufficient. Use kernel-checked tactics such as omega or bv_decide as appropriate. See https://lean-lang.org/ and https://leanprover.github.io/theorem_proving_in_lean4/ .
