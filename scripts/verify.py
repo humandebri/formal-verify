@@ -3,7 +3,8 @@
 
 Exit codes for `run`:
   0  the tool ran and reported no failure (still requires semantic review)
-  1  the tool reported a property failure / counterexample / failing test
+  1  the tool output shows the property is not established: a violation,
+     counterexample, failing test, or (Lean) reliance on sorry/non-standard axioms
   2  tool missing, timeout, unrecognized failure, or input file changed
   3  the tool rejected the input or arguments (parse/type error, unknown name)
 """
@@ -19,7 +20,7 @@ import time
 
 TOOLS = ('z3', 'cvc5', 'quint', 'verus', 'kani', 'lean')
 STANDARD_LEAN_AXIOMS = {'propext', 'Classical.choice', 'Quot.sound'}
-EXIT = {'clean': 0, 'violation_reported': 1, 'input_error': 3}
+EXIT = {'clean': 0, 'violation_reported': 1, 'untrusted_axioms': 1, 'input_error': 3}
 
 # Output signatures observed with Quint 0.34, Kani 0.68, Verus 0.2026.05, Lean 4.36,
 # Z3 5.4 and cvc5 1.4. They are heuristics: unmatched failures become `unrecognized`.
@@ -78,7 +79,7 @@ def _matches(patterns: tuple[str, ...], lines: list[str]) -> list[str]:
     return [line.strip() for line in lines if any(re.search(p, line) for p in patterns)]
 
 
-def observe(backend: str, rc: int, stdout: str, stderr: str) -> dict:
+def observe(backend: str, rc: int, stdout: str, stderr: str, prop: str | None = None) -> dict:
     """Machine-readable signals from tool output. Not a semantic verdict."""
     lines = (stdout + '\n' + stderr).splitlines()
     obs: dict = {'outcome': None, 'signals': [], 'warnings': []}
@@ -128,16 +129,23 @@ def observe(backend: str, rc: int, stdout: str, stderr: str) -> dict:
         return done('clean', [])
 
     # lean
-    for m in re.finditer(r"depends on axioms: \[([^\]]*)\]", stdout):
-        extra = {a.strip() for a in m.group(1).split(',')} - STANDARD_LEAN_AXIOMS
-        if extra:
-            obs['warnings'].append('non-standard axioms: ' + ', '.join(sorted(extra)))
+    axioms: dict[str, list[str]] = {}
+    for m in re.finditer(r"^'([^']+)' (?:does not depend on any axioms|depends on axioms: \[([^\]]*)\])", stdout, re.M):
+        axioms[m.group(1)] = sorted(a.strip() for a in (m.group(2) or '').split(',') if a.strip())
+    obs['lean_axioms'] = axioms
+    untrusted = sorted({a for used in axioms.values() for a in used} - STANDARD_LEAN_AXIOMS)
+    if untrusted:
+        obs['warnings'].append('non-standard axioms: ' + ', '.join(untrusted))
+    if prop and not any(name == prop or name.endswith('.' + prop) for name in axioms):
+        obs['warnings'].append(f"no '#print axioms {prop}' output; axiom usage of the claimed theorem is unchecked")
     errors = _matches((r'error:',), lines)
-    if not errors:
-        return done('clean' if rc == 0 else 'unrecognized', [])
-    if _matches(LEAN_INPUT, errors):
-        return done('input_error', errors)
-    return done('violation_reported', errors)
+    if errors:
+        if _matches(LEAN_INPUT, errors):
+            return done('input_error', errors)
+        return done('violation_reported', errors)
+    if untrusted:
+        return done('untrusted_axioms', ['non-standard axioms: ' + ', '.join(untrusted)])
+    return done('clean' if rc == 0 else 'unrecognized', [])
 
 
 def detect() -> dict:
@@ -230,7 +238,7 @@ def main() -> int:
     elif rc is None:
         observed = {'outcome': 'tool_missing', 'signals': [stderr.decode(errors='replace')], 'warnings': []}
     else:
-        observed = observe(args.backend, rc, stdout.decode(errors='replace'), stderr.decode(errors='replace'))
+        observed = observe(args.backend, rc, stdout.decode(errors='replace'), stderr.decode(errors='replace'), args.property)
 
     outcome = observed['outcome']
     status = {'timeout': 'TIMEOUT', 'tool_missing': 'TOOL_ERROR', 'input_error': 'TOOL_ERROR',

@@ -12,6 +12,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 P = ROOT / 'scripts/verify.py'
 EX = ROOT / 'examples'
 ENABLED = os.environ.get('FORMAL_VERIFY_INTEGRATION') == '1'
+REQUIRE_ALL = os.environ.get('FORMAL_VERIFY_REQUIRE_ALL') == '1'  # CI: a missing tool fails instead of skipping
 
 CASES = [
     # (name, argv, expected exit, expected outcome)
@@ -45,6 +46,8 @@ class Integration(unittest.TestCase):
         for name, argv, code, outcome in CASES:
             with self.subTest(name), tempfile.TemporaryDirectory() as t:
                 if not usable(argv[0]):
+                    if REQUIRE_ALL:
+                        self.fail(f'{argv[0]} not usable')
                     self.skipTest(f'{argv[0]} not usable')
                 out = pathlib.Path(t) / 'evidence'
                 r = subprocess.run([sys.executable, str(P), 'run', *map(str, argv), '--timeout', '300', '--out', str(out)],

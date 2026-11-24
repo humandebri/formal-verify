@@ -205,8 +205,13 @@ class Observe(unittest.TestCase):
         self.assertEqual(o['outcome'], 'violation_reported')
         self.assertIn('non-standard axioms: sorryAx', o['warnings'])
         self.check('lean', 1, 'A.lean:1:5: error: unexpected token \'theorem\'\n', '', 'input_error')
-        o = v.observe('lean', 0, "'u' depends on axioms: [bad, propext]\n", '')
-        self.assertEqual((o['outcome'], o['warnings']), ('clean', ['non-standard axioms: bad']))
+        o = v.observe('lean', 0, "'u' depends on axioms: [bad, propext]\n", '', 'u')
+        self.assertEqual((o['outcome'], o['warnings']), ('untrusted_axioms', ['non-standard axioms: bad']))
+        o = v.observe('lean', 0, "'Foo.t' depends on axioms: [propext, Classical.choice, Quot.sound]\n", '', 't')
+        self.assertEqual((o['outcome'], o['warnings']), ('clean', []))
+        o = v.observe('lean', 0, '', '', 't')
+        self.assertEqual(o['outcome'], 'clean')
+        self.assertIn("no '#print axioms t' output", o['warnings'][0])
 
 
 if __name__ == '__main__':
