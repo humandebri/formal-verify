@@ -4,7 +4,7 @@
 - `python3 scripts/verify.py run verus model.rs --property <label> --out <dir>` (`verus --output-json model.rs`). The collector runs inside `OUT/work`, so the compiled executable stays there.
 - `observed.verus` copies `success`, `verified`, `errors` and `encountered-error` from the JSON. `errors > 0` → `violation_reported` (exit 1: an obligation failed, e.g. `possible arithmetic underflow/overflow` or a postcondition). `encountered-error` with `errors == 0` → `input_error` (exit 3: syntax, type or mode error before verification).
 - Narrow the scope while iterating with `--verify-module <m>` or `--verify-function <f>`; report the full-crate result at the end (`is-verifying-entire-crate` in the JSON).
-- Cargo projects: see `cargo verus --help` for the installed version.
+- Cargo projects: `python3 scripts/verify.py run verus --project <crate root> --property <label> --out <dir>` runs `cargo verus focus -- --output-json` (verifies the crate, not its dependencies). Pin `vstd` to the release matching the installed Verus (`cargo verus new` scaffolds a crate; check `verus --version` for the required Rust toolchain). `observed.verus` sums results across the JSON objects Cargo emits.
 
 ## Before writing specs
 1. Read the target function and all direct callers, callees, types and tests.

@@ -2,7 +2,7 @@
 
 ## Run
 - Single file: `python3 scripts/verify.py run lean Model.lean --property <theorem> --out <dir>` (`lean -DwarningAsError=true Model.lean`).
-- Lake project (Mathlib etc.): run with `--cwd <project root>`; inside the project use `lake env lean -DwarningAsError=true Model.lean` or `lake build`. Building an untrusted project runs its code: sandbox it.
+- Lake project (Mathlib etc.): `python3 scripts/verify.py run lean Path/In/Project.lean --project <root> --property <theorem> --out <dir>` runs `lake lean <file> -- -DwarningAsError=true`, building imported modules first. Warnings-as-errors applies to that file only; `sorry` in an imported module still shows up as `sorryAx` in `#print axioms`. Building an untrusted project runs its code: sandbox it.
 - Put `#print axioms <theorem>` after every claimed theorem. The collector parses it into `observed.lean_axioms` and:
   - `untrusted_axioms` (exit 1) if anything beyond `propext`, `Classical.choice`, `Quot.sound` is used (`sorryAx`, user `axiom`s, `native_decide` auxiliaries);
   - a warning if the `--property` theorem has no `#print axioms` output (axioms unchecked).

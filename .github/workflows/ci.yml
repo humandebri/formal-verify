@@ -33,8 +33,8 @@ jobs:
       QUINT_VERSION: 0.34.0
       LEAN_VERSION: v4.36.0
       KANI_VERSION: 0.68.0
-      VERUS_VERSION: 0.2026.05.05.d03e906
-      VERUS_RUST: 1.95.0
+      VERUS_VERSION: 0.2026.11.22.1ce6a59
+      VERUS_RUST: 1.100.0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

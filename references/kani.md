@@ -2,7 +2,7 @@
 
 ## Run
 - Standalone file: `python3 scripts/verify.py run kani model.rs --property <harness> --out <dir>` (`kani model.rs --harness <harness>`).
-- Cargo project: run `cargo kani --harness <harness>` from the crate root (or the collector with `--cwd <crate root>` once Cargo support is needed; the collector currently invokes standalone `kani`).
+- Cargo project: `python3 scripts/verify.py run kani --project <crate root> --property <harness> --out <dir>` (`cargo kani --harness <harness>`, build output in `OUT/work/target`). Compile errors (`error: could not compile`) are `input_error`.
 - Outcomes: `VERIFICATION:- FAILED` → `violation_reported` (exit 1); compile errors or an unknown harness name → `input_error` (exit 3). `observed.signals` keeps the harness summary line.
 
 ## Harness design

@@ -1,0 +1,5 @@
+name = "lean_lake"
+defaultTargets = ["LeanLake"]
+
+[[lean_lib]]
+name = "LeanLake"

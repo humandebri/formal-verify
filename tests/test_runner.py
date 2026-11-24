@@ -162,6 +162,90 @@ class Runner(unittest.TestCase):
             self.assertEqual(data['status'], 'UNKNOWN')
 
 
+class ProcessAndProject(unittest.TestCase):
+    def test_timeout_kills_grandchildren(self):
+        with tempfile.TemporaryDirectory() as t:
+            pid_file = pathlib.Path(t) / 'pid'
+            script = pathlib.Path(t) / 'spawn.sh'
+            script.write_text('#!/bin/sh\nsleep 60 &\necho $! > "$1"\nsleep 60\n')
+            script.chmod(0o755)
+            r = v.invoke([str(script), str(pid_file)], 0.5, '.')
+            self.assertTrue(r[3])
+            pid = int(pid_file.read_text())
+            with self.assertRaises(ProcessLookupError):
+                os.kill(pid, 0)
+
+    def test_leftover_background_process_is_killed(self):
+        with tempfile.TemporaryDirectory() as t:
+            pid_file = pathlib.Path(t) / 'pid'
+            script = pathlib.Path(t) / 'bg.sh'
+            script.write_text('#!/bin/sh\nsleep 60 > /dev/null 2>&1 &\necho $! > "$1"\n')
+            script.chmod(0o755)
+            rc, _, _, timed, leftover = v.invoke([str(script), str(pid_file)], 10, '.')
+            self.assertEqual((rc, timed, leftover), (0, False, True))
+            with self.assertRaises(ProcessLookupError):
+                os.kill(int(pid_file.read_text()), 0)
+
+    def _crate(self, d, cargo_body):
+        proj = d / 'crate'
+        (proj / 'src').mkdir(parents=True)
+        (proj / 'Cargo.toml').write_text('[package]\nname = "c"\nversion = "0.1.0"\n')
+        (proj / 'src' / 'lib.rs').write_text('pub fn f() {}\n')
+        bindir = d / 'bin'
+        bindir.mkdir()
+        cargo = bindir / 'cargo'
+        cargo.write_text('#!/bin/sh\n' + cargo_body)
+        cargo.chmod(0o755)
+        env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ['PATH'])
+        return proj, env
+
+    def _run_project(self, d, proj, env, backend='kani'):
+        out = d / 'evidence'
+        r = subprocess.run([sys.executable, str(P), 'run', backend, '--project', str(proj), '--property', 'h',
+                            '--out', str(out)], env=env, capture_output=True, text=True)
+        return r, json.loads((out / 'result.json').read_text())
+
+    def test_project_mode_isolates_target_and_reports_changes(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = pathlib.Path(t)
+            body = ('echo "$CARGO_TARGET_DIR" > "$PWD/../target_dir"\n'
+                    'echo "VERIFICATION:- SUCCESSFUL"\n'
+                    'echo "Complete - 1 successfully verified harnesses, 0 failures, 1 total."\n')
+            proj, env = self._crate(d, body)
+            r, data = self._run_project(d, proj, env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(data['command'][1:], ['kani', '--harness', 'h'])
+            self.assertEqual((d / 'target_dir').read_text().strip(), str((d / 'evidence' / 'work' / 'target').resolve()))
+            self.assertEqual(data['project']['file_count'], 2)
+            self.assertFalse(data['input_changed'])
+
+    def test_project_mode_detects_modified_source(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = pathlib.Path(t)
+            proj, env = self._crate(d, 'echo "// edited" >> src/lib.rs\ntouch NEW.txt\necho "VERIFICATION:- SUCCESSFUL"\n')
+            r, data = self._run_project(d, proj, env)
+            self.assertEqual(r.returncode, 2)
+            self.assertTrue(data['input_changed'])
+            self.assertEqual(data['project']['changes'], {'modified_or_deleted': ['src/lib.rs'], 'created': ['NEW.txt']})
+
+    def test_project_argument_validation(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = pathlib.Path(t)
+            f = d / 'm.smt2'
+            f.write_text('(check-sat)')
+            cases = [
+                (['z3', str(f), '--project', str(d), '--property', 'x'], 'supported for kani, verus and lean'),
+                (['kani', '--project', str(d), '--property', 'x'], 'has no Cargo.toml'),
+                (['lean', '--project', str(d), '--property', 'x'], 'has no lakefile.toml'),
+                (['kani', '--property', 'x'], 'input file is missing'),
+            ]
+            for i, (argv, msg) in enumerate(cases):
+                r = subprocess.run([sys.executable, str(P), 'run', *argv, '--out', str(d / f'o{i}')],
+                                   capture_output=True, text=True)
+                self.assertEqual(r.returncode, 2)
+                self.assertIn(msg, r.stderr)
+
+
 class Observe(unittest.TestCase):
     """Signatures captured from real tool output (see verify.py header for versions)."""
 
@@ -197,6 +281,20 @@ class Observe(unittest.TestCase):
         self.check('verus', 1, out(1, True), 'error: possible arithmetic underflow/overflow\n', 'violation_reported')
         self.check('verus', 1, out(0, True), 'error: expected an expression\n', 'input_error')
         self.check('verus', 1, 'not json', '', 'unrecognized')
+
+    def test_verus_cargo_stream(self):
+        one = json.dumps({'verification-results': {'success': True, 'verified': 2354, 'errors': 0, 'encountered-error': False}})
+        two = json.dumps({'verification-results': {'success': False, 'verified': 0, 'errors': 1, 'encountered-error': True}})
+        o = v.observe('verus', 101, one + '\n' + two, 'error: postcondition not satisfied\n')
+        self.assertEqual(o['outcome'], 'violation_reported')
+        self.assertEqual((o['verus']['crates'], o['verus']['verified'], o['verus']['errors']), (2, 2354, 1))
+        self.check('verus', 101, '', 'error: could not compile `c` (lib) due to 1 previous error\n', 'input_error')
+
+    def test_lean_lake_axiom_format(self):
+        out = "info: LeanLake/Midpoint.lean:7:0: 'midpoint_le_max' depends on axioms: [propext, Quot.sound]\n"
+        o = v.observe('lean', 0, out, '', 'midpoint_le_max')
+        self.assertEqual((o['outcome'], o['warnings'], o['lean_axioms']),
+                         ('clean', [], {'midpoint_le_max': ['Quot.sound', 'propext']}))
 
     def test_lean(self):
         self.check('lean', 0, "'add_comm_example' does not depend on any axioms\n", '', 'clean')

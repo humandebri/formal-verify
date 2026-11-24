@@ -4,3 +4,4 @@ __pycache__/
 evidence/
 target/
 _apalache-out/
+.lake/

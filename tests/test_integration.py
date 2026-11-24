@@ -27,6 +27,9 @@ CASES = [
     ('kani_average', ['kani', EX / 'kani_average.rs', '--property', 'check'], 0, 'clean'),
     ('kani_wrong_harness', ['kani', EX / 'kani_average.rs', '--property', 'nope'], 3, 'input_error'),
     ('lean_add', ['lean', EX / 'Add.lean', '--property', 'add_comm_example'], 0, 'clean'),
+    ('kani_project', ['kani', '--project', EX / 'projects/kani-crate', '--property', 'midpoint_matches_wide'], 0, 'clean'),
+    ('verus_project', ['verus', '--project', EX / 'projects/verus-crate', '--property', 'max'], 0, 'clean'),
+    ('lean_project', ['lean', 'LeanLake/Midpoint.lean', '--project', EX / 'projects/lean-lake', '--property', 'midpoint_le_max'], 0, 'clean'),
 ]
 
 
@@ -50,10 +53,52 @@ class Integration(unittest.TestCase):
                         self.fail(f'{argv[0]} not usable')
                     self.skipTest(f'{argv[0]} not usable')
                 out = pathlib.Path(t) / 'evidence'
-                r = subprocess.run([sys.executable, str(P), 'run', *map(str, argv), '--timeout', '300', '--out', str(out)],
+                r = subprocess.run([sys.executable, str(P), 'run', *map(str, argv), '--timeout', '900', '--out', str(out)],
                                    capture_output=True, text=True, cwd=t)
                 data = json.loads((out / 'result.json').read_text())
                 self.assertEqual((r.returncode, data['observed']['outcome']), (code, outcome), data['observed'])
+
+    def test_async_counter_case_end_to_end(self):
+        """Real Quint results for the bundled example pass case_check's cross-checks."""
+        if not usable('quint'):
+            if REQUIRE_ALL:
+                self.fail('quint not usable')
+            self.skipTest('quint not usable')
+        ex = EX / 'async-counter'
+        with tempfile.TemporaryDirectory() as t:
+            root = pathlib.Path(t)
+            for name in ('counter.qnt', 'fixed.qnt', 'app.py', 'replay.py'):
+                shutil.copy(ex / name, root / name)
+            for name, model in (('model_run', 'counter.qnt'), ('fixed_run', 'fixed.qnt')):
+                subprocess.run([sys.executable, str(P), 'run', 'quint', model, '--property', 'safe', '--bound', '5',
+                                '--quint-itf', '--out', str(root / name)], cwd=root, capture_output=True, timeout=900)
+            red = subprocess.run([sys.executable, 'replay.py'], cwd=root, capture_output=True, text=True)
+            green = subprocess.run([sys.executable, 'replay.py', '--fixed'], cwd=root, capture_output=True, text=True)
+            self.assertNotEqual(red.returncode, 0)
+            self.assertEqual(green.returncode, 0)
+            (root / 'red.log').write_text(red.stdout + red.stderr)
+            (root / 'green.log').write_text(green.stdout + green.stderr)
+            (root / 'fixed_run' / 'model_test.log').write_text('see fixed_run/stdout.log')
+            manifest = {
+                'property_id': 'safe', 'property': 'count <= 1', 'source_revision': 'example',
+                'assumptions': [], 'exclusions': [], 'tradeoffs': [],
+                'mapping': [{'abstract_action': 'complete', 'source_symbol': 'app.complete',
+                             'concrete_inputs': 'stale token', 'observable_effect': 'count'}],
+                'claim': 'FIX_REPLAYED',
+                'evidence': {
+                    'model': 'counter.qnt', 'fixed_model': 'fixed.qnt',
+                    'trace': 'model_run/trace.itf.json', 'model_regression': 'counter.qnt',
+                    'implementation_test': 'replay.py', 'red_log': 'red.log', 'green_log': 'green.log',
+                    'fixed_check_log': 'fixed_run/stdout.log',
+                    'model_check_result': 'model_run/result.json', 'fixed_check_result': 'fixed_run/result.json',
+                },
+            }
+            (root / 'case.json').write_text(json.dumps(manifest))
+            r = subprocess.run([sys.executable, str(ROOT / 'scripts/case_check.py'), str(root / 'case.json')],
+                               capture_output=True, text=True)
+            res = json.loads(r.stdout)
+            self.assertTrue(res['inventory_complete'], res['errors'])
+            self.assertEqual(res['warnings'], [])
 
 
 if __name__ == '__main__':
